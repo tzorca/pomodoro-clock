@@ -11,7 +11,66 @@
   </div>
 
 <script>
+  var Clock = function() {
+    var self = this;
+
+    var State = {
+      Pomodoro: "Pomodoro",
+      Break: "Break"
+    };
+
+    var state = State.Pomodoro;
+    var running = false;
+    var elapsedTime = 0;
+    var lastDateTime = 0;
+
+    self.pomodoroSeconds = 25*60;
+    self.breakSeconds = 5*60;
+    
+    self.resetTimer = function() {
+      elapsedTime = 0;
+    };
+
+    var getCurrentDateTime = function() {
+      return new Date().getTime();
+    };
+
+    self.startPomodoro = function() {
+      running = true;
+      state = State.Pomodoro;
+      lastDateTime = getCurrentDateTime();
+    };
+
+    self.pausePomodoro = function() {
+
+    };
+
+    self.resumePomodoro = function() {
+
+    }
+
+    self.startBreak = function() {
+
+    };
+
+    self.getElapsedTime = function() {
+      return elapsedTime;
+    };
+    
+    window.setInterval(function() {
+      if (running) {
+        var currentDateTime = getCurrentDateTime();
+        elapsedTime += currentDateTime - lastDateTime;
+        lastDateTime = currentDateTime;
+      }
+    }, 500);
+  };
+
+  var clock = new Clock();
+  clock.startPomodoro();
+
   $(function() {
+    
   });
 </script>
 </body>
