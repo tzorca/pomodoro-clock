@@ -8,6 +8,13 @@
 <body>
 
   <div class="container">
+    
+    <div id="timer"></div>
+
+    <button type="button" class="btn btn-primary" id="start-pomodoro">(Re)Start Pomodoro</button>
+    <button type="button" class="btn btn-primary" id="pause-timer">Pause/Resume</button>
+    <button type="button" class="btn btn-primary" id="take-break">Take a break</button>
+
   </div>
 
 <script>
@@ -29,6 +36,9 @@
     self.pomodoroSeconds = 15;
     self.breakSeconds = 5*60;
     
+    self.tickCallback = function() {
+    };
+
     self.resetTimer = function() {
       elapsedTime = 0;
     };
@@ -41,6 +51,11 @@
       state = State.Pomodoro;
       lastDateTime = getCurrentDateTime();
       running = true;
+    };
+
+    self.pause = function() {
+      lastDateTime = getCurrentDateTime();
+      running = false;
     };
 
     self.pauseOrResume = function() {
@@ -58,12 +73,17 @@
       return elapsedTime;
     };
 
-    self.timeIsFinished = function() {
-      if (state == State.Pomodoro && elapsedTime >= self.pomodoroSeconds * 1000 - INTERVAL / 2) {
-        return true;
+    self.getRemainingTime = function() {
+      var endSeconds = self.pomodoroSeconds;
+      if (state == State.Break) {
+        endSeconds = self.breakSeconds;
       }
 
-      if (state == State.Break && elapsedTime >= self.breakSeconds * 1000 - INTERVAL / 2) {
+      return endSeconds * 1000 - elapsedTime;
+    };
+
+    self.timeIsFinished = function() {
+      if (self.getRemainingTime() < INTERVAL / 2) {
         return true;
       }
 
@@ -86,15 +106,36 @@
           running = false;
           self.showFinish();
         }
+
+        self.tickCallback();
       }
     }, INTERVAL);
   };
 
   var clock = new Clock();
-  clock.startPomodoro();
 
   $(function() {
-    
+    clock.tickCallback = function() {
+      var remainingTime = clock.getRemainingTime();
+
+      $("#timer").text(Math.round(remainingTime/1000));
+    };
+
+    $("#start-pomodoro").click(function() {
+      clock.pause();
+      clock.resetTimer();
+      clock.startPomodoro();
+    });
+
+    $("#pause-timer").click(function() {
+      clock.pauseOrResume();
+    });
+
+    $("#take-break").click(function() {
+      clock.pause();
+      clock.resetTimer();
+      clock.startBreak();
+    });
   });
 </script>
 </body>
