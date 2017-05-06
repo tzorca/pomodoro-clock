@@ -1,56 +1,90 @@
 <html>
 <head>
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-  <title>TBD</title>
+  <title>Pomodoro Clock</title>
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.js"></script>
 </head>
 <body>
 
-  <div class="container">
-    
-    <div id="timer"></div>
-
-    <button type="button" class="btn btn-primary" id="start-pomodoro">(Re)Start Pomodoro</button>
-    <button type="button" class="btn btn-primary" id="pause-timer">Pause/Resume</button>
-    <button type="button" class="btn btn-primary" id="take-break">Take a break</button>
-
+<div class="container">
+  
+  <h3 id="timer-value">&nbsp;</h3>
+  <div class="progress">
+    <div id="timer-progress" class="progress-bar progress-bar-striped progress-bar-danger" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+    </div>
   </div>
 
+
+  <button type="button" class="btn btn-primary" id="start-pomodoro">(Re)Start Pomodoro</button>
+  <button type="button" class="btn btn-primary" id="pause-timer">Pause/Resume</button>
+  <button type="button" class="btn btn-primary" id="take-break">Take a break</button>
+
+</div>
+
+
+<style>
+  #timer-value {
+    font-family: monospace;
+    font-weight: bold;
+  }
+
+  .no-transition {
+    -webkit-transition: none;
+    -moz-transition: none;
+    -ms-transition: none;
+    -o-transition: none;
+    transition: none;
+  }​
+
+</style>
+
+
 <script>
-  var Clock = function() {
+  var PomodoroClock = function() {
     var self = this;
 
-    var State = {
+    var States = {
       Pomodoro: "Pomodoro",
       Break: "Break"
     };
+    var INTERVAL = 1000;
 
-    var INTERVAL = 500;
-
-    var state = State.Pomodoro;
+    var state = States.Pomodoro;
     var running = false;
     var elapsedTime = 0;
     var lastDateTime = 0;
 
-    self.pomodoroSeconds = 15;
+    self.pomodoroSeconds = 3;
     self.breakSeconds = 5*60;
-    
-    self.tickCallback = function() {
-    };
+    self.updateCallback = function() {};
+    self.finishCallback = function() {};
 
     self.resetTimer = function() {
       elapsedTime = 0;
     };
+
+    self.getState = function() {
+      return state;
+    };
+
+    self.getPossibleStates = function() {
+      return  $.extend({}, States);
+    }
 
     var getCurrentDateTime = function() {
       return new Date().getTime();
     };
 
     self.startPomodoro = function() {
-      state = State.Pomodoro;
-      lastDateTime = getCurrentDateTime();
-      running = true;
+      state = States.Pomodoro;
+      startTimer();
+    };
+
+    self.startBreak = function() {
+      state = States.Break;
+      startTimer();
     };
 
     self.pause = function() {
@@ -63,79 +97,123 @@
       running = !running;
     };
 
-    self.startBreak = function() {
-      state = State.Break;
-      lastDateTime = getCurrentDateTime();
-      running = true;
+    self.getEndSeconds = function() {
+      var endSeconds = self.pomodoroSeconds;
+      if (state == States.Break) {
+        endSeconds = self.breakSeconds;
+      };
+      return endSeconds;
     };
 
-    self.getElapsedTime = function() {
-      return elapsedTime;
+    self.getProgressRatio = function() {
+      return elapsedTime / (self.getEndSeconds() * 1000.0);
     };
 
     self.getRemainingTime = function() {
-      var endSeconds = self.pomodoroSeconds;
-      if (state == State.Break) {
-        endSeconds = self.breakSeconds;
-      }
+      return Math.max(self.getEndSeconds() * 1000 - elapsedTime, 0);
+    };
 
-      return endSeconds * 1000 - elapsedTime;
+    // Rounds to the nearest second
+    self.getRemainingSeconds = function() {
+      return Math.round(self.getRemainingTime()/1000);
     };
 
     self.timeIsFinished = function() {
-      if (self.getRemainingTime() < INTERVAL / 2) {
-        return true;
-      }
-
-      return false;
+      return self.getRemainingTime() <= 0;
     };
 
-    self.showFinish = function() {
-      alert(state + " finished!");
-      console.log(state + " finished!");
-    };
-
-    
-    window.setInterval(function() {
+    var tickFunction = function() {
       if (running) {
         var currentDateTime = getCurrentDateTime();
         elapsedTime += currentDateTime - lastDateTime;
         lastDateTime = currentDateTime;
 
+        self.updateCallback(running);
         if (self.timeIsFinished()) {
           running = false;
-          self.showFinish();
+          self.finishCallback(state);
         }
-
-        self.tickCallback();
+      } else {
+        self.updateCallback(running);
       }
-    }, INTERVAL);
+    };
+
+    var intervalHandlerId = null;
+    var startTimer = function() {
+      running = true;
+      lastDateTime = getCurrentDateTime();
+
+      // Set up new continual interval function after removing old one
+      // Needs to be added at the same time the timer starts to ensure consistent timing
+      if (intervalHandlerId) {
+        window.clearInterval(intervalHandlerId);
+      }
+      intervalHandlerId = window.setInterval(tickFunction, INTERVAL);
+
+      self.updateCallback(running);
+    };
   };
 
-  var clock = new Clock();
+  var pomodoroClock = new PomodoroClock();
+
+  function updateTimerForUser(isActive) {
+    // Update progress bar position
+    var progressPercent = pomodoroClock.getProgressRatio() * 100;
+    // Don't use transitions when starting at 0
+    if (progressPercent == 0) {
+      $("#timer-progress").addClass("no-transition");
+    } else {
+      $("#timer-progress").removeClass("no-transition");
+    }
+    $("#timer-progress").css('width', progressPercent + '%').attr('aria-valuenow', progressPercent);
+
+    // Update progress bar active state
+    if (isActive) {
+      $("#timer-progress").addClass("active");
+    } else {
+      $("#timer-progress").removeClass("active");
+    }
+
+    // Update progress bar color
+    var state = pomodoroClock.getState();
+    if (state == pomodoroClock.getPossibleStates().Pomodoro) {
+      $("#timer-progress").addClass("progress-bar-danger");
+      $("#timer-progress").removeClass("progress-bar-success");
+    } else {
+      $("#timer-progress").addClass("progress-bar-success");
+      $("#timer-progress").removeClass("progress-bar-danger");
+    }
+
+    // Update countdown time
+    var displayTime = moment.utc(pomodoroClock.getRemainingSeconds()*1000).format('HH:mm:ss');
+    $("#timer-value").text(displayTime);
+  }
 
   $(function() {
-    clock.tickCallback = function() {
-      var remainingTime = clock.getRemainingTime();
+    pomodoroClock.updateCallback = updateTimerForUser;
 
-      $("#timer").text(Math.round(remainingTime/1000));
+    pomodoroClock.finishCallback = function(state) {
+      alert(state + " finished!");
+      console.log(state + " finished!");
     };
 
     $("#start-pomodoro").click(function() {
-      clock.pause();
-      clock.resetTimer();
-      clock.startPomodoro();
+      pomodoroClock.pause();
+      pomodoroClock.resetTimer();
+      pomodoroClock.startPomodoro();
     });
 
     $("#pause-timer").click(function() {
-      clock.pauseOrResume();
+      pomodoroClock.pauseOrResume();
     });
 
     $("#take-break").click(function() {
-      clock.pause();
-      clock.resetTimer();
-      clock.startBreak();
+      pomodoroClock.pause();
+      pomodoroClock.resetTimer();
+      pomodoroClock.startBreak();
     });
+
+    updateTimerForUser();
   });
 </script>
 </body>
