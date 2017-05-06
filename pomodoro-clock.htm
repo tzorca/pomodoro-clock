@@ -19,12 +19,14 @@
       Break: "Break"
     };
 
+    var INTERVAL = 500;
+
     var state = State.Pomodoro;
     var running = false;
     var elapsedTime = 0;
     var lastDateTime = 0;
 
-    self.pomodoroSeconds = 25*60;
+    self.pomodoroSeconds = 15;
     self.breakSeconds = 5*60;
     
     self.resetTimer = function() {
@@ -36,34 +38,56 @@
     };
 
     self.startPomodoro = function() {
-      running = true;
       state = State.Pomodoro;
       lastDateTime = getCurrentDateTime();
+      running = true;
     };
 
-    self.pausePomodoro = function() {
-
+    self.pauseOrResume = function() {
+      lastDateTime = getCurrentDateTime();
+      running = !running;
     };
-
-    self.resumePomodoro = function() {
-
-    }
 
     self.startBreak = function() {
-
+      state = State.Break;
+      lastDateTime = getCurrentDateTime();
+      running = true;
     };
 
     self.getElapsedTime = function() {
       return elapsedTime;
     };
+
+    self.timeIsFinished = function() {
+      if (state == State.Pomodoro && elapsedTime >= self.pomodoroSeconds * 1000 - INTERVAL / 2) {
+        return true;
+      }
+
+      if (state == State.Break && elapsedTime >= self.breakSeconds * 1000 - INTERVAL / 2) {
+        return true;
+      }
+
+      return false;
+    };
+
+    self.showFinish = function() {
+      alert(state + " finished!");
+      console.log(state + " finished!");
+    };
+
     
     window.setInterval(function() {
       if (running) {
         var currentDateTime = getCurrentDateTime();
         elapsedTime += currentDateTime - lastDateTime;
         lastDateTime = currentDateTime;
+
+        if (self.timeIsFinished()) {
+          running = false;
+          self.showFinish();
+        }
       }
-    }, 500);
+    }, INTERVAL);
   };
 
   var clock = new Clock();
