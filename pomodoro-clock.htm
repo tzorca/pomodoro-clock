@@ -5,26 +5,110 @@
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.js"></script>
+
 </head>
 <body>
 
 <div class="container">
-  
-  <h3 id="timer-value">&nbsp;</h3>
-  <div class="progress">
-    <div id="timer-progress" class="progress-bar progress-bar-striped progress-bar-danger" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+  <br />
+  <div class="section">
+    <h3 class="heading-reduced-margin"><span id="timer-title"></span></h3>
+    <h3 class="heading-reduced-margin"><span id="timer-value">&nbsp;</span></h3>
+    <div class="progress progress-dark-grey">
+      <div id="timer-progress" class="progress-bar progress-bar-striped progress-bar-danger" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+      </div>
     </div>
+
+    <button type="button" class="btn-neon-blue" id="start-timer">Start</button>
+    <button type="button" class="btn-neon-blue" id="pause-timer">Pause/Resume</button>
+    <button type="button" class="btn-neon-blue" id="take-break">Take a break</button>
   </div>
 
 
-  <button type="button" class="btn btn-primary" id="start-pomodoro">(Re)Start Pomodoro</button>
-  <button type="button" class="btn btn-primary" id="pause-timer">Pause/Resume</button>
-  <button type="button" class="btn btn-primary" id="take-break">Take a break</button>
+  <div class="section-cell">
+    <h4 class="heading-reduced-margin">Pomodoro Length</h4>
+    <button type="button" class="btn-neon-blue" id="decrease-pomo-minutes">-</button>
+    <span class="lead monospace" id="next-pomo-minutes">25</span>
+    <button type="button" class="btn-neon-blue" id="increase-pomo-minutes">+</button>
+  </div><div class="section-cell">
+    <h4 class="heading-reduced-margin">Break Length</h4>
+    <button type="button" class="btn-neon-blue" id="decrease-break-minutes">-</button>
+    <span class="lead monospace" id="next-break-minutes">5</span>
+    <button type="button" class="btn-neon-blue" id="increase-break-minutes">+</button>
+  </div>
 
 </div>
 
 
 <style>
+
+  .btn-neon-blue, .btn-neon-blue:visited, .btn-neon-blue:focus {
+    background-color: Transparent;
+    background-repeat: none;
+    font-family: monospace;
+    border: rgb(65, 112, 214) solid 2px;
+    margin: 0.5em;
+    color: rgb(65, 112, 214);
+    font-size: 20px;
+    vertical-align: middle;
+    border-radius: 8px;
+    padding-right: 0.5em;
+    padding-left: 0.5em;
+    text-decoration: none;
+  }
+
+  .monospace {
+    font-family: monospace;
+  }
+
+  .btn-neon-blue:hover {
+    border: rgb(95, 142, 214) solid 2px;
+    text-decoration: none;
+    color: rgb(95, 142, 214);
+  }
+
+  .btn-neon-blue:active {
+    border: rgb(125, 172, 244) solid 2px;
+    text-decoration: none;
+    color: rgb(125, 172, 244);
+  }
+
+  .heading-reduced-margin {
+    margin-top: 0;
+    margin-bottom: 0.5em;
+  }
+
+  body {
+    background-color: black;
+    color: #eee;
+  }
+
+  .input-dark-grey {
+    background-color: #444;
+    color: #eee;
+  }
+
+  .progress-dark-grey {
+    background-color: #444;
+  }
+
+  .section-cell {
+    display: inline-block;
+    background-color: #222;
+    border: #111 solid 1px;
+    color: #eee;
+    padding: 1em;
+    margin: 0em;
+  }
+
+  .section {
+    background-color: #222;
+    border: #111 solid 2px;
+    color: #eee;
+    padding: 1em;
+    margin-bottom: 2em;
+  }
+
   #timer-value {
     font-family: monospace;
     font-weight: bold;
@@ -49,68 +133,112 @@
       Pomodoro: "Pomodoro",
       Break: "Break"
     };
-    var INTERVAL = 1000;
 
-    var state = States.Pomodoro;
-    var running = false;
-    var elapsedTime = 0;
-    var lastDateTime = 0;
+    var internal = {};
+    
+    internal.INTERVAL = 1000;
 
-    self.pomodoroSeconds = 3;
+    internal.state = States.Pomodoro;
+    internal.running = false;
+    internal.elapsedTime = 0;
+    internal.lastDateTime = 0;
+
+    internal.getCurrentDateTime = function() {
+      return new Date().getTime();
+    };
+
+    internal.finish = function() {
+      internal.running = false;
+      self.finishCallback(internal.state);
+      self.resetTimer();
+
+      if (internal.state == States.Pomodoro) {
+        internal.state = States.Break;
+      } else {
+        internal.state = States.Pomodoro;
+      }
+    };
+
+    internal.tick = function() {
+      if (internal.running) {
+        var currentDateTime = internal.getCurrentDateTime();
+        internal.elapsedTime += currentDateTime - internal.lastDateTime;
+        internal.lastDateTime = currentDateTime;
+
+        self.updateCallback(internal.running);
+        if (self.timeIsFinished()) {
+          internal.finish();
+        }
+      } else {
+        self.updateCallback(internal.running);
+      }
+    };
+
+    internal.intervalHandlerId = null;
+
+    self.pomodoroSeconds = 25*60;
     self.breakSeconds = 5*60;
     self.updateCallback = function() {};
     self.finishCallback = function() {};
 
     self.resetTimer = function() {
-      elapsedTime = 0;
+      internal.elapsedTime = 0;
     };
 
     self.getState = function() {
-      return state;
+      return internal.state;
+    };
+
+    self.setState = function(newState) {
+      internal.state = newState;
     };
 
     self.getPossibleStates = function() {
-      return  $.extend({}, States);
+      return $.extend({}, States);
+    };
+
+    self.isRunning = function() {
+      return internal.running;
     }
 
-    var getCurrentDateTime = function() {
-      return new Date().getTime();
-    };
+    self.startTimer = function() {
+      internal.running = true;
+      internal.lastDateTime = internal.getCurrentDateTime();
 
-    self.startPomodoro = function() {
-      state = States.Pomodoro;
-      startTimer();
-    };
+      // Set up new continual interval function after removing old one
+      // Needs to be added at the same time the timer starts to ensure consistent timing
+      if (internal.intervalHandlerId) {
+        window.clearInterval(internal.intervalHandlerId);
+      }
+      internal.intervalHandlerId = window.setInterval(internal.tick, internal.INTERVAL);
 
-    self.startBreak = function() {
-      state = States.Break;
-      startTimer();
+      self.updateCallback(internal.running);
     };
 
     self.pause = function() {
-      lastDateTime = getCurrentDateTime();
-      running = false;
+      internal.lastDateTime = internal.getCurrentDateTime();
+      internal.running = false;
     };
 
     self.pauseOrResume = function() {
-      lastDateTime = getCurrentDateTime();
-      running = !running;
+      internal.lastDateTime = internal.getCurrentDateTime();
+      internal.running = !internal.running;
     };
 
     self.getEndSeconds = function() {
       var endSeconds = self.pomodoroSeconds;
-      if (state == States.Break) {
+      if (internal.state == States.Break) {
         endSeconds = self.breakSeconds;
       };
       return endSeconds;
     };
 
     self.getProgressRatio = function() {
-      return elapsedTime / (self.getEndSeconds() * 1000.0);
+      return internal.elapsedTime / (self.getEndSeconds() * 1000.0);
     };
 
     self.getRemainingTime = function() {
-      return Math.max(self.getEndSeconds() * 1000 - elapsedTime, 0);
+      return Math.max(self.getEndSeconds() * 1000 - internal.elapsedTime, 0);
     };
 
     // Rounds to the nearest second
@@ -121,40 +249,52 @@
     self.timeIsFinished = function() {
       return self.getRemainingTime() <= 0;
     };
-
-    var tickFunction = function() {
-      if (running) {
-        var currentDateTime = getCurrentDateTime();
-        elapsedTime += currentDateTime - lastDateTime;
-        lastDateTime = currentDateTime;
-
-        self.updateCallback(running);
-        if (self.timeIsFinished()) {
-          running = false;
-          self.finishCallback(state);
-        }
-      } else {
-        self.updateCallback(running);
-      }
-    };
-
-    var intervalHandlerId = null;
-    var startTimer = function() {
-      running = true;
-      lastDateTime = getCurrentDateTime();
-
-      // Set up new continual interval function after removing old one
-      // Needs to be added at the same time the timer starts to ensure consistent timing
-      if (intervalHandlerId) {
-        window.clearInterval(intervalHandlerId);
-      }
-      intervalHandlerId = window.setInterval(tickFunction, INTERVAL);
-
-      self.updateCallback(running);
-    };
   };
 
   var pomodoroClock = new PomodoroClock();
+
+  var timeLimitEditors = {
+    nextPomoMinutes: pomodoroClock.pomodoroSeconds / 60,
+    nextBreakMinutes: pomodoroClock.breakSeconds / 60,
+    updateDisplays: function() {
+      $("#next-pomo-minutes").text(timeLimitEditors.nextPomoMinutes);
+      $("#next-break-minutes").text(timeLimitEditors.nextBreakMinutes);
+    },
+    updateClockTimeLimitsIfNotRunning: function() {
+      if (!pomodoroClock.isRunning()) {
+        pomodoroClock.pomodoroSeconds = timeLimitEditors.nextPomoMinutes * 60;
+        pomodoroClock.breakSeconds = timeLimitEditors.nextBreakMinutes * 60;
+      }
+    },
+    update: function() {
+      timeLimitEditors.updateDisplays();
+      timeLimitEditors.updateClockTimeLimitsIfNotRunning();
+      updateTimerForUser(pomodoroClock.isRunning());
+    },
+    setup: function() {
+      $("#increase-pomo-minutes").click(function() {
+        timeLimitEditors.nextPomoMinutes++;
+        timeLimitEditors.update();
+      });
+
+      $("#decrease-pomo-minutes").click(function() {
+        timeLimitEditors.nextPomoMinutes--;
+        timeLimitEditors.update();
+      });
+
+      $("#increase-break-minutes").click(function() {
+        nextBreakMinute++;
+        timeLimitEditors.update();
+      });
+
+      $("#decrease-break-minutes").click(function() {
+        nextBreakMinutes--;
+        timeLimitEditors.update();
+      });
+
+      timeLimitEditors.update();
+    }
+  };
 
   function updateTimerForUser(isActive) {
     // Update progress bar position
@@ -165,7 +305,9 @@
     } else {
       $("#timer-progress").removeClass("no-transition");
     }
-    $("#timer-progress").css('width', progressPercent + '%').attr('aria-valuenow', progressPercent);
+    $("#timer-progress")
+      .css('width', progressPercent + '%')
+      .attr('aria-valuenow', progressPercent);
 
     // Update progress bar active state
     if (isActive) {
@@ -175,32 +317,45 @@
     }
 
     // Update progress bar color
-    var state = pomodoroClock.getState();
-    if (state == pomodoroClock.getPossibleStates().Pomodoro) {
-      $("#timer-progress").addClass("progress-bar-danger");
-      $("#timer-progress").removeClass("progress-bar-success");
-    } else {
-      $("#timer-progress").addClass("progress-bar-success");
-      $("#timer-progress").removeClass("progress-bar-danger");
+    var clockState = pomodoroClock.getState();
+    if (clockState == pomodoroClock.getPossibleStates().Pomodoro) {
+      $("#timer-progress")
+        .addClass("progress-bar-danger")
+        .removeClass("progress-bar-success");
+    } else if (clockState == pomodoroClock.getPossibleStates().Break) {
+      $("#timer-progress")
+        .addClass("progress-bar-success")
+        .removeClass("progress-bar-danger");
+    }
+
+    // Update timer title
+    $("#timer-title").html(clockState);
+    if (clockState == pomodoroClock.getPossibleStates().Pomodoro) {
+      $("#timer-title").addClass("text-danger").removeClass("text-success");
+    } else if (clockState == pomodoroClock.getPossibleStates().Break) {
+      $("#timer-title").addClass("text-success").removeClass("text-danger");
     }
 
     // Update countdown time
-    var displayTime = moment.utc(pomodoroClock.getRemainingSeconds()*1000).format('HH:mm:ss');
+    var displayTime = moment.utc(pomodoroClock.getRemainingSeconds()*1000).format('H:mm:ss');
     $("#timer-value").text(displayTime);
   }
 
   $(function() {
-    pomodoroClock.updateCallback = updateTimerForUser;
-
-    pomodoroClock.finishCallback = function(state) {
-      alert(state + " finished!");
-      console.log(state + " finished!");
+    pomodoroClock.updateCallback = function(isActive) {
+      timeLimitEditors.updateClockTimeLimitsIfNotRunning();
+      updateTimerForUser(isActive);
     };
 
-    $("#start-pomodoro").click(function() {
+    pomodoroClock.finishCallback = function(clockState) {
+      alert(clockState + " finished!");
+      console.log(clockState + " finished!");
+    };
+
+    $("#start-timer").click(function() {
       pomodoroClock.pause();
       pomodoroClock.resetTimer();
-      pomodoroClock.startPomodoro();
+      pomodoroClock.startTimer();
     });
 
     $("#pause-timer").click(function() {
@@ -209,10 +364,13 @@
 
     $("#take-break").click(function() {
       pomodoroClock.pause();
+      pomodoroClock.setState(pomodoroClock.getPossibleStates().Break);
       pomodoroClock.resetTimer();
-      pomodoroClock.startBreak();
+      pomodoroClock.startTimer();
     });
 
+    timeLimitEditors.setup();
+    
     updateTimerForUser();
   });
 </script>
