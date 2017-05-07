@@ -1,10 +1,10 @@
 <html>
 <head>
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+  <link rel="stylesheet" href="lib/bootstrap.min.css">
   <title>Pomodoro Clock</title>
-  <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.js"></script>
+  <script src="lib/jquery-3.2.1.min.js"></script>
+  <script src="lib/bootstrap.min.js"></script>
+  <script src="lib/moment.js"></script>
 
 </head>
 <body>
@@ -19,9 +19,13 @@
       </div>
     </div>
 
-    <button type="button" class="btn-neon-blue" id="start-timer">Start</button>
-    <button type="button" class="btn-neon-blue" id="pause-timer">Pause/Resume</button>
-    <button type="button" class="btn-neon-blue" id="take-break">Take a break</button>
+		<div>
+    	<button type="button" class="btn-neon-blue" id="start-timer">Start</button>
+    </div>
+    <div>
+    	<button type="button" class="btn-neon-blue" id="pause-timer">Pause</button>
+    	<button type="button" class="btn-neon-blue" id="switch-mode">Take a break</button>
+    </div>
   </div>
 
 
@@ -47,7 +51,7 @@
     background-repeat: none;
     font-family: monospace;
     border: rgb(65, 112, 214) solid 2px;
-    margin: 0.5em;
+    margin: 0.25em;
     color: rgb(65, 112, 214);
     font-size: 20px;
     vertical-align: middle;
@@ -189,6 +193,14 @@
       return internal.state;
     };
 
+    self.toggleState = function() {
+    	if (internal.state == States.Pomodoro) {
+    		internal.state = States.Break;
+    	} else if (internal.state == States.Break) {
+    		internal.state = States.Pomodoro;
+    	}
+    };
+
     self.setState = function(newState) {
       internal.state = newState;
     };
@@ -260,15 +272,26 @@
       $("#next-pomo-minutes").text(timeLimitEditors.nextPomoMinutes);
       $("#next-break-minutes").text(timeLimitEditors.nextBreakMinutes);
     },
-    updateClockTimeLimitsIfNotRunning: function() {
-      if (!pomodoroClock.isRunning()) {
-        pomodoroClock.pomodoroSeconds = timeLimitEditors.nextPomoMinutes * 60;
-        pomodoroClock.breakSeconds = timeLimitEditors.nextBreakMinutes * 60;
+    conditionallyUpdatePomodoroClock: function() {
+
+    	var nextPomoSeconds = timeLimitEditors.nextPomoMinutes * 60;
+    	var nextBreakSeconds = timeLimitEditors.nextBreakMinutes * 60;
+
+      if (pomodoroClock.getProgressRatio() == 0) {
+      	// Update both times if not started yet (at 0%)
+        pomodoroClock.pomodoroSeconds = nextPomoSeconds;
+        pomodoroClock.breakSeconds = nextBreakSeconds;
+      } else if (pomodoroClock.getState() == pomodoroClock.getPossibleStates().Pomodoro) {
+        // Update break time if currently running in Pomodoro mode
+      	pomodoroClock.breakSeconds = nextBreakSeconds;
+      } else if (pomodoroClock.getState() == pomodoroClock.getPossibleStates().Break) {
+      	// Update Pomodoro time if currently running in break mode
+      	pomodoroClock.pomodoroSeconds = nextPomoSeconds;
       }
     },
     update: function() {
       timeLimitEditors.updateDisplays();
-      timeLimitEditors.updateClockTimeLimitsIfNotRunning();
+      timeLimitEditors.conditionallyUpdatePomodoroClock();
       updateTimerForUser(pomodoroClock.isRunning());
     },
     setup: function() {
@@ -278,18 +301,22 @@
       });
 
       $("#decrease-pomo-minutes").click(function() {
-        timeLimitEditors.nextPomoMinutes--;
-        timeLimitEditors.update();
+      	if (timeLimitEditors.nextPomoMinutes > 1) {
+	        timeLimitEditors.nextPomoMinutes--;
+	        timeLimitEditors.update();
+      	}
       });
 
       $("#increase-break-minutes").click(function() {
-        nextBreakMinute++;
+        timeLimitEditors.nextBreakMinutes++;
         timeLimitEditors.update();
       });
 
       $("#decrease-break-minutes").click(function() {
-        nextBreakMinutes--;
-        timeLimitEditors.update();
+      	if (timeLimitEditors.nextBreakMinutes > 1) {
+	        timeLimitEditors.nextBreakMinutes--;
+	        timeLimitEditors.update();
+	      }
       });
 
       timeLimitEditors.update();
@@ -341,9 +368,30 @@
     $("#timer-value").text(displayTime);
   }
 
+  function updateButtonLabels() {
+  	if (pomodoroClock.getProgressRatio() > 0) {
+  		$("#start-timer").text("Restart");
+  	} else {
+  		$("#start-timer").text("Start");
+  	}
+
+  	if (pomodoroClock.isRunning() || pomodoroClock.getProgressRatio() == 0) {
+  		$("#pause-timer").text("Pause");
+  	} else {
+  		$("#pause-timer").text("Resume");
+  	}
+
+  	if (pomodoroClock.getState() == pomodoroClock.getPossibleStates().Break) {
+			$("#switch-mode").text("Start Next Pomodoro");
+    } else {
+    	$("#switch-mode").text("Take a Break");
+    }
+  }
+
   $(function() {
     pomodoroClock.updateCallback = function(isActive) {
-      timeLimitEditors.updateClockTimeLimitsIfNotRunning();
+      timeLimitEditors.conditionallyUpdatePomodoroClock();
+      updateButtonLabels();
       updateTimerForUser(isActive);
     };
 
@@ -359,12 +407,14 @@
     });
 
     $("#pause-timer").click(function() {
-      pomodoroClock.pauseOrResume();
+    	if (pomodoroClock.getProgressRatio() > 0) {
+    	  pomodoroClock.pauseOrResume();
+    	}
     });
 
-    $("#take-break").click(function() {
+    $("#switch-mode").click(function() {
       pomodoroClock.pause();
-      pomodoroClock.setState(pomodoroClock.getPossibleStates().Break);
+      pomodoroClock.toggleState();
       pomodoroClock.resetTimer();
       pomodoroClock.startTimer();
     });
